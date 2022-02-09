@@ -1,6 +1,4 @@
-from math import exp
-from msilib.schema import Upgrade
-from sqlite3 import Time
+from cmath import sqrt
 from time import time
 import casadi as ca
 import numpy as np
@@ -9,19 +7,19 @@ from simulation_code import simulate
 
 # q and r weights ffor state and controls
 
-Q_X = 100
-Q_Y = 100
+Q_X = 500
+Q_Y = 500
 Q_theta = 2000
 
-R_omega1 = 1
-R_omega2 = 1
-R_omega3 = 1
-R_omega4 = 1
+R_omega1 = 25
+R_omega2 = 25
+R_omega3 = 25
+R_omega4 = 25
 
 step_horizon = 0.1  # time between steps in seconds
-N = 10              # number of look ahead steps
+N = 20              # number of look ahead steps
 rob_diam = 0.3      # diameter of the robot
-wheel_radius = 0.1    # wheel radius
+wheel_radius = 1    # wheel radius
 Lx = 0.3              # L in J Matrix (half robot x-axis length)
 Ly = 0.3            # l in J Matrix (half robot y-axis length)
 sim_time = 200      # simulation time (will be removed in practical application)
@@ -120,6 +118,19 @@ for k in range(N):
     X.reshape((-1, 1)),   # Example: 3x11 ---> 33x1 where 3=states, 11=N+1
     U.reshape((-1, 1))
 )
+# obstacle center coordinates and diameter
+obs_x = 7.5
+obs_y = 4.5
+obs_diam = 0
+
+# adding obstacle inequality to g
+for k in range(N+1):
+    inequality = ca.SX((rob_diam/2 + obs_diam/2) - ((X[0,k] - obs_x)**2 + (X[1,k] - obs_y)**2))**1/2
+    g = ca.vertcat(
+        g,
+        inequality
+    )
+
 nlp_prob = {
     'f': cost_fn,
     'x': OPT_variables,
@@ -144,8 +155,13 @@ lbx = ca.DM.zeros((n_states*(N+1) + n_controls*N, 1))
 ubx = ca.DM.zeros((n_states*(N+1) + n_controls*N, 1))
 
 # lower and upper bound for constraint; they are zero because we have an equality constraint of x(k+1) - x(K+1)rk = 0
-lbg = ca.DM.zeros((n_states*(N+1), 1))
-ubg = ca.DM.zeros((n_states*(N+1), 1))
+lbg = ca.DM.zeros(((n_states+1)*(N+1), 1))
+ubg = ca.DM.zeros(((n_states+1)*(N+1), 1))
+
+
+# adding obstacle constraints
+lbg[n_states*(N+1):, :] = -np.inf
+ubg[n_states*(N+1):, :] = 0
 
 # INDEXING:
 # we place x, y and theta bounds once every n_states steps so that the matrix has x, y and theta repeated N+1 times (1 set for each time step)
@@ -218,10 +234,10 @@ def shift(t0, state, control, f):
     )
     return t0, next_state, u0
 
-
+main_loop = time()
 # simulation loop is running while accepted error has not been met and time has not reached max simulation time
 # if either condition has been met the loop terminates 
-while ca.norm_fro(state_target-state_init) > 10**-2 and mpc_iteration < sim_time / step_horizon :
+while ca.norm_fro(state_init-state_target) > 10**-2 and mpc_iteration < sim_time / step_horizon :
     t1 = time() # getting time at teh start of iteration
 
     args['p'] = ca.vertcat(         # passing in the current state and the reference, target, state to the solver
@@ -252,11 +268,11 @@ while ca.norm_fro(state_target-state_init) > 10**-2 and mpc_iteration < sim_time
 
     t0, state_init, current_control = shift(t0, state_init, control, f)  # shifting to get next state and apply control action
 
-    t = ca.vertcat( # adding timestep to total
+    t = np.vstack(( # adding timestep to total
         t,
         t0
-    )
-
+    ))
+    
     current_state = ca.horzcat( # shifting current state by one and again duplicating last state
         current_state[:, 1:],
         current_state[:,-1]
@@ -272,6 +288,15 @@ while ca.norm_fro(state_target-state_init) > 10**-2 and mpc_iteration < sim_time
     mpc_iteration += 1 # incrementeing iteration count
 
 
+ss_error = ca.norm_2(state_init - state_target) # finding error from current state - target state
+
+main_loop_time = time() # getting time after loop
+
+# printing results
+print('\n\n')
+print('Total time: ', main_loop_time - main_loop)
+print('avg iteration time: ', np.array(times).mean() * 1000, 'ms')
+print('final error: ', ss_error)
 # visualizing system
 simulate(predicted_states, computed_control, times, step_horizon, N, 
             np.array([x_init, y_init, theta_init, x_target, y_target, theta_target]))
