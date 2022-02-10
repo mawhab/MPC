@@ -4,8 +4,8 @@ import matplotlib.pyplot as plt
 from matplotlib import animation
 from time import time
 
-
-def simulate(cat_states, cat_controls, t, step_horizon, N, reference, save=False):
+#  (total_states, total_controls, total_times, step_horizon, N, initial and target states)
+def simulate(cat_states, cat_controls, t, step_horizon, N, reference, save=False, obs_x=0,obs_y=0,obs_r=0,obs=False):
     def create_triangle(state=[0,0,0], h=1, w=0.5, update=False):
         x, y, th = state
         triangle = np.array([
@@ -67,6 +67,11 @@ def simulate(cat_states, cat_controls, t, step_horizon, N, reference, save=False
     path, = ax.plot([], [], 'k', linewidth=2)
     #   horizon
     horizon, = ax.plot([], [], 'x-g', alpha=0.5)
+
+    # adding obstacle
+    if obs:
+        obstacle_circle = plt.Circle((obs_x,obs_y), obs_r, fill=False, ls='--')
+        ax.add_patch(obstacle_circle)
     #   current_state
     current_triangle = create_triangle(reference[:3])
     current_state = ax.fill(current_triangle[:, 0], current_triangle[:, 1], color='r')

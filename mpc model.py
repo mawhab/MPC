@@ -21,7 +21,7 @@ R_omega = 25
 
 step_horizon = 0.1  # time between steps in seconds
 N = 20              # number of look ahead steps
-rob_diam = 0.3      # diameter of the robot
+rob_diam = 3      # diameter of the robot
 wheel_radius = 1    # wheel radius
 Lx = 0.3            # L in J Matrix (half robot x-axis length)
 Ly = 0.3            # l in J Matrix (half robot y-axis length)
@@ -162,13 +162,13 @@ for k in range(N):
     U.reshape((-1, 1))
 )
 # obstacle center coordinates and diameter
-obs_x = 1.5
-obs_y = 1.5
+obs_x = 5
+obs_y = 4
 obs_diam = 5
 
 # adding obstacle inequality to g
 for k in range(N+1):
-    inequality = ca.SX((rob_diam/2 + obs_diam/2) - ((X[0,k] - obs_x)**2 + (X[1,k] - obs_y)**2))**1/2
+    inequality = ca.SX( -((X[0,k] - obs_x)**2 + (X[1,k] - obs_y)**2)**1/2 + (rob_diam/2 + obs_diam/2))
     g = ca.vertcat(
         g,
         inequality
@@ -536,6 +536,7 @@ if __name__ == '__main__':
     print('avg iteration time: ', np.array(times).mean() * 1000, 'ms')
     print('final error: ', ss_error)
     # visualizing system
-    simulate(total_states, total_control, total_times, step_horizon, N, 
-                np.array([x_init, y_init, theta_init, x_given, y_given, theta_given]))
+    simulate(total_states, total_control, total_times, step_horizon, N,
+                np.array([x_init, y_init, theta_init, x_given, y_given, theta_given])
+                , obs_x=obs_x, obs_y=obs_y,obs_r=obs_diam/2, obs=True)
     
